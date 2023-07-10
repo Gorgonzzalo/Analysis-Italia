@@ -2,7 +2,7 @@
 # Imports
 import os
 
-import geopandas as gpd
+# import geopandas as gpd
 import pandas as pd
 from openpyxl import load_workbook
 
@@ -30,7 +30,9 @@ rootLineas = "Lineas Overpass.xlsx"
 lineas = load_workbook(rootLineas, data_only = True)
 
 # %%
+# Primera criba
 dfLineas = pd.DataFrame(lineas['Lineas Overpass'].values) 
+dfOverpass= pd.DataFrame(lineas['Lineas Overpass'].values) 
 dfLineas.columns = dfLineas.iloc[0]
 dfLineas.drop([0], inplace = True, axis = 0)
 
@@ -40,7 +42,7 @@ dfLineas = dfLineas.dropna(subset=['voltage'])
 dfLineas = dfLineas[dfLineas['Name'].str.contains('-', na=False)]
 dfLineas = dfLineas[~dfLineas['Name'].str.contains(';')]
 dfLineas = dfLineas[~dfLineas['Name'].duplicated()]
-dfOrig = pd.DataFrame(lineas['Lineas Overpass'].values) # Hacemos una copia del bruto.
+dfOrig = dfLineas.copy() # Hacemos una copia del bruto.
 
 ########################################################################################
 ########################################################################################
@@ -57,8 +59,8 @@ dfLineas['Name'] = dfLineas['Name'].apply(lambda x: x.replace(' /2', '/2'))
 dfLineas['Name'] = dfLineas['Name'].apply(lambda x: x.replace('/ 3', '/3'))
 dfLineas['Name'] = dfLineas['Name'].apply(lambda x: x.replace(' / 3', '/3'))
 dfLineas['Name'] = dfLineas['Name'].apply(lambda x: x.replace(' /3', '/3'))
-dfLineas['Name'] = dfLineas['Name'].apply(lambda x: x.replace('Melilli-Isab', 'Melilli_Isab'))
-dfLineas['Name'] = dfLineas['Name'].apply(lambda x: x.replace('Melilli-Sio', 'Melilli_Sio'))
+dfLineas = dfLineas[~dfLineas['Name'].str.contains('Melilli-Isab/2 - Melilli-Sio/2')]
+dfLineas = dfLineas[~dfLineas['Name'].str.contains('Melilli-Isab/1 - Melilli-Sio/1')]
 dfLineas = dfLineas[~dfLineas['Name'].str.contains('/1-2')]
 
 # dfLineas = dfLineas.loc[dfLineas['Name'].str.contains(' / ').split(" / ")[0]]
@@ -77,16 +79,31 @@ dfLineas = dfLineas.drop_duplicates(subset='Name', keep='first')
 
 # %%
 # Separamos en función del número de líneas que hay en la string
-dfLineasTres = dfLineas[dfLineas['Name'].str.count('-') >= 2]
-dfLineasCuatro = dfLineasTres[dfLineasTres['Name'].str.count('-') >= 3]
+dfLineasCuatro = dfLineas[dfLineas['Name'].str.count('-') >= 3]
+dfLineasTres = dfLineas[dfLineas['Name'].str.count('-') == 2]
 dfLineas = dfLineas[dfLineas['Name'].str.count('-') <= 1]
 
+dfLineas.reset_index(inplace = True, drop = True)
+dfLineasTres.reset_index(inplace = True, drop = True)
+dfLineasCuatro.reset_index(inplace = True, drop = True)
 
 ####################################################################################################
 ####################################################################################################
 # %%
 # Aquí se incluirá el cálculo de las íneas. Hay que dejar todo metido en líneas de A-B. 
 
+# Splitting the values in Column1 and creating new DataFrame
+dfLineasTres_exploded = pd.concat([dfLineasTres['Name'].str.split('-', expand=True) ,dfLineasTres['voltage']], axis = 1)
+dfLineasTres_exploded = dfLineasTres['Name'].str.split('-', expand=True) + dfLineasTres['voltage']
+dfLineasTres_exploded.columns = ['NewColumn1', 'NewColumn2', 'NewColumn3']
+
+# Creating the new DataFrame with exploded rows 
+
+dfLineasTresAux1 = dfLineasTres_exploded['NewColumn1'] + '-' + dfLineasTres_exploded['NewColumn2']
+dfLineasTresAux2 = dfLineasTres_exploded['NewColumn2'] + '-' + dfLineasTres_exploded['NewColumn3']
+
+dfLineasTres_new = pd.concat([dfLineasTres_exploded['NewColumn1'] + '-' + dfLineasTres_exploded['NewColumn2'],dfLineasTres_exploded['NewColumn2'] + '-' + dfLineasTres_exploded['NewColumn3']],axis=0, ignore_index=True)
+dfLineasTres_new = pd.DataFrame({'Column1': dfLineasTres_new, 'Column2': dfLineasTres['voltage'].repeat(2)})
 
 
 
